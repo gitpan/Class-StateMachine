@@ -1,6 +1,8 @@
 Revision history for Perl extension Class::StateMachine.
 
-0.01  Thu Jun 23 21:20:55 2005
-	- original version; created by h2xs 1.23 with options
-		-AXn Class::StateMachine
+0.12  Apr 18, 2006
+    - minor corrections to the docs
+
+0.11  Thu Jun 23
+	- first version released on CPAN
 

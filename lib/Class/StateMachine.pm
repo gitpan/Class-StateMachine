@@ -1,6 +1,6 @@
 package Class::StateMachine::Private;
 
-our $VERSION = '0.11';
+our $VERSION = '0.12';
 
 use strict;
 use warnings;
@@ -197,8 +197,8 @@ Class::StateMachine - define classes for state machines
 
 =head1 DESCRIPTION
 
-Class::StateMachine lets define methods that are dispatched depending
-on an internal C<state> property via the C<OnState> attribute.
+Class::StateMachine lets define, via the C<OnState> attribute, methods
+that are dispatched depending on an internal C<state> property.
 
 =head2 METHODS
 
@@ -223,7 +223,7 @@ also be derived from Class::StateMachine.
 
 =head1 BUGS
 
-Becose of certain limitations in current perl implementation of
+Because of certain limitations in current perl implementation of
 attributed subroutines, attributes have to be processed on CHECK
 blocks. That means that they will not be available before that, for
 instance, on module initialization, or in BEGIN blocks.
@@ -234,7 +234,7 @@ L<attributes>, L<perlsub>, L<perlmod>, L<warnings>, L<Attribute::Handlers>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2003-2005 by Salvador FandiE<ntilde>o E<lt>sfandino@yahoo.comE<gt>
+Copyright (C) 2003-2006 by Salvador FandiE<ntilde>o (sfandino@yahoo.com).
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
