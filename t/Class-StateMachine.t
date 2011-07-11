@@ -1,5 +1,7 @@
 #! /usr/bin/perl
 
+use 5.010;
+
 use Test::More tests => 8;
 BEGIN { use_ok('Class::StateMachine') };
 
@@ -8,7 +10,7 @@ package SM;
 use warnings;
 no warnings 'redefine';
 
-use base 'Class::StateMachine';
+use parent 'Class::StateMachine';
 
 sub foo : OnState(one) { 1 }
 
@@ -20,15 +22,34 @@ sub bar : OnState(__any__) { 'any' }
 
 sub bar : OnState(five, six, seven) { 7 }
 
+sub enter_state {
+    say "enter to: $_[1] from: $_[2]";
+}
+
+sub leave_state : OnState(new) {
+    say "leaving state new";
+}
+
+sub leave_state : OnState(__any__) {
+    say "leave from: $_[1] to: $_[2]";
+}
 
 sub new {
-    my $class=shift;
-    bless {@_}, $class;
+    my $class = shift;
+    Class::StateMachine::bless {@_}, $class;
+}
+
+package SM2;
+
+BEGIN { our @ISA = qw(SM) };
+
+sub leave_state : OnState(two) {
+    say "leaving state two!";
 }
 
 package main;
 
-my $t = SM->new;
+my $t = SM2->new;
 $t->state('one');
 is($t->foo, 1, 'one');
 
