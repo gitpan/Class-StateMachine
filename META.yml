@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Class-StateMachine
-version:            0.14
+version:            0.15
 abstract:           define classes for state machines
 author:
     - Salvador Fandino <sfandino@yahoo.com>
@@ -16,6 +16,7 @@ requires:
     mro:             0
     MRO::Define:     0.01
     Package::Stash:  0.29
+    Scalar::Util:    0
     Sub::Name:       0.05
     Test::More:      0
 no_index:
