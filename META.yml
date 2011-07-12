@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Class-StateMachine
-version:            0.13
+version:            0.14
 abstract:           define classes for state machines
 author:
     - Salvador Fandino <sfandino@yahoo.com>
@@ -11,8 +11,12 @@ configure_requires:
 build_requires:
     ExtUtils::MakeMaker:  0
 requires:
+    Devel::Peek:     0
+    Hash::Util:      0
+    mro:             0
     MRO::Define:     0.01
-    Package::Stash:  0
+    Package::Stash:  0.29
+    Sub::Name:       0.05
     Test::More:      0
 no_index:
     directory:
