@@ -1,6 +1,6 @@
 package Class::StateMachine;
 
-our $VERSION = '0.16';
+our $VERSION = '0.17';
 
 our $debug //= 0;
 
@@ -130,13 +130,13 @@ EOE
     grep(!defined, @on_state) and croak "undef is not a valid state";
     @on_state or warnings::warnif('Class::StateMachine',
                                   'no states on OnState attribute declaration');
-    push @state_methods, [$class, $sub, @on_state];
+    push @state_methods, [$class, undef, $sub, @on_state];
 }
 
 sub _move_state_methods {
     while (@state_methods) {
-	my ($class, $sub, @on_state) = @{shift @state_methods};
-	my $sym = CvGV($sub);
+	my ($class, $sym, $sub, @on_state) = @{shift @state_methods};
+	$sym //= CvGV($sub);
 	my ($method) = $sym=~/::([^:]+)$/ or croak "invalid symbol name '$sym'";
 
         my $stash = Package::Stash->new($class);
@@ -239,10 +239,10 @@ sub AUTOLOAD {
 }
 
 sub install_method {
-    my ($class, $sub, @states) = @_;
+    my ($class, $name, $sub, @states) = @_;
     CORE::ref $class and Carp::croak "$class is not a package valid package name";
     CODE::ref $sub eq 'CODE' or Carp::croak "$sub is not a subroutine reference";
-    push @state_methods, [$class, $sub, @states];
+    push @state_methods, [$class, $name, $sub, @states];
     Class::StateMachine::Private::_move_state_methods;
 }
 
@@ -291,17 +291,16 @@ Class::StateMachine - define classes for state machines
 =head1 DESCRIPTION
 
 This module allows to build classes whose instance behavior (methods)
-depends not only on inheritance but also on some internal instance
-state.
+depends not only on inheritance but also on some internal state.
 
-For instance, suppose we want to develop a Dog class implementing the
+For example, suppose we want to develop a Dog class implementing the
 following behavior:
 
   my $dog = Dog->new;
   $dog->state("happy");
-  $dog->on_touched_head; # the dog will move his tail
+  $dog->on_touched_head; # the dog moves his tail
   $dog->state("angry");
-  $dog->on_touched_head; # the dog will bite you
+  $dog->on_touched_head; # the dog bites you
 
 With the help of Class::StateMachine, that state dependant behaviour
 can be easily programmed using the C<OnState> subroutine attribute as
@@ -320,9 +319,9 @@ Class::StateMachine does not imposse any particular type of data
 structure for the instance objects. Any Perl reference type (HASH,
 ARRAY, SCALAR, GLOB, etc.) can be used.
 
-The unique condition is that must be fulfilled is to use the C<bless>
-subrutine provided by Class::StateMachine instead of the Perl builtin
-of the same name.
+The unique condition that must be fulfilled is to use the C<bless>
+subroutine provided by Class::StateMachine to create the object instead
+of the Perl builtin of the same name.
 
 For instance:
 
@@ -334,13 +333,13 @@ For instance:
     Class::StateMachine::bless($dog, $class, 'happy');
   }
 
-A default state C<new> gets assigned to the object if the third
+A default state C<new> gets assigned to the object when the third
 parameter to C<Class::StateMachine::bless> is ommited.
 
 =head2 Instance state
 
-The instance state is maintained internally by Class::StateMachine and can be
-accessed though the L</state> method:
+The instance state is maintained internally by Class::StateMachine and
+can be accessed though the L</state> method:
 
   my $state = Dog->state;
 

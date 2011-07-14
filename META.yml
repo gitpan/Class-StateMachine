@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Class-StateMachine
-version:            0.16
+version:            0.17
 abstract:           define classes for state machines
 author:
     - Salvador Fandino <sfandino@yahoo.com>
