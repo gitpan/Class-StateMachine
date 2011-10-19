@@ -1,6 +1,6 @@
 package Class::StateMachine;
 
-our $VERSION = '0.17';
+our $VERSION = '0.18';
 
 our $debug //= 0;
 
@@ -17,7 +17,7 @@ sub _eval_states {
 use strict;
 use warnings;
 use Carp;
-
+BEGIN { our @CARP_NOT = qw(Class::StateMachine) }
 use mro;
 use MRO::Define;
 use Hash::Util qw(fieldhash);
@@ -27,6 +27,8 @@ use Sub::Name;
 use Scalar::Util qw(refaddr);
 
 fieldhash my %state;
+fieldhash my %delayed;
+
 my ( %class_isa_stateful,
      %class_bootstrapped );
 
@@ -71,6 +73,12 @@ sub _state {
             $debug and _debug($self, "calling enter_state($new_state, $old_state)");
             $enter->($self, $new_state, $old_state);
         }
+        if (my $delayed = $delayed{$self}) {
+            while (@$delayed) {
+                my $action = shift @$delayed;
+                $self->$action
+            }
+        }
     }
     $state{$self};
 }
@@ -89,6 +97,21 @@ sub _bless {
     bless $self, $class;
     $debug and _debug($self, "real class set to $class");
     $self;
+}
+
+sub _delay {
+    my $self = shift;
+    my $code;
+    if (@_) {
+        $code = shift;
+        defined $code or return;
+    }
+    else {
+        $code = (caller 1)[3];
+        $code =~ s/.*:://;
+    }
+    my $delayed = ($delayed{$self} //= []);
+    push @$delayed, $code;
 }
 
 sub _bootstrap_state_class {
@@ -137,7 +160,7 @@ sub _move_state_methods {
     while (@state_methods) {
 	my ($class, $sym, $sub, @on_state) = @{shift @state_methods};
 	$sym //= CvGV($sub);
-	my ($method) = $sym=~/::([^:]+)$/ or croak "invalid symbol name '$sym'";
+	my ($method) = $sym=~/([^:]+)$/ or croak "invalid symbol name '$sym'";
 
         my $stash = Package::Stash->new($class);
         $stash->remove_symbol("&$method");
@@ -185,6 +208,7 @@ sub MODIFY_CODE_ATTRIBUTES {
 *state = \&Class::StateMachine::Private::_state;
 *rebless = \&Class::StateMachine::Private::_bless;
 *bless = \&Class::StateMachine::Private::_bless;
+*delay_until_next_state = \&Class::StateMachine::Private::_delay;
 
 sub ref {
     my $class = ref $_[0];
@@ -231,6 +255,7 @@ sub AUTOLOAD {
                          "The submethods on the inheritance chain are:",
                          "    " . join("\n    ", @submethods),
                          "...");
+        local $Carp::Verbose = 1;
         Carp::croak $error;
     }
     else {
@@ -240,8 +265,8 @@ sub AUTOLOAD {
 
 sub install_method {
     my ($class, $name, $sub, @states) = @_;
-    CORE::ref $class and Carp::croak "$class is not a package valid package name";
-    CODE::ref $sub eq 'CODE' or Carp::croak "$sub is not a subroutine reference";
+    CORE::ref($class) and Carp::croak "$class is not a package valid package name";
+    CORE::ref($sub) eq 'CODE' or Carp::croak "$sub is not a subroutine reference";
     push @state_methods, [$class, $name, $sub, @states];
     Class::StateMachine::Private::_move_state_methods;
 }
@@ -497,6 +522,21 @@ $old_state, the requested state change is canceled.
 X<enter_state>This method is called just after changing the state to
 the new value.
 
+=item $self->delay_until_next_state
+
+=item $self->delay_until_next_state($method_name)
+
+=item $self->delay_until_next_state($code_ref)
+
+This function allows to save a code reference or a method name that
+will be called after the next state transition from the C<state>
+method just after C<enter_state>.
+
+It is useful when your object receives some message that does not
+known how to handle in its current state. For instance:
+
+  sub on_foo :OnState('bar') { shift->delay_until_next_state }
+
 =back
 
 =item Class::StateMachine::ref($obj)
@@ -506,7 +546,7 @@ the new value.
 Returns the class of the object without the parts related to
 Class::StateMachine magic.
 
-=item Class::StateMachine::install_method($class, $sub, @states)
+=item Class::StateMachine::install_method($class, $method_name, $sub, @states)
 
 Sets a submethod for a given class/state combination.
 
