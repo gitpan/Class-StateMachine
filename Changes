@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::StateMachine.
 
+0.21  Jan 21, 2013
+      - add support for delay_once_until_next_state method
+
 0.20  Nov 27, 2012
       - work around bug on the pure-perl version of Package::Stash
 
