@@ -4,7 +4,7 @@
       "Salvador Fandino <sfandino@yahoo.com>"
    ],
    "dynamic_config" : 1,
-   "generated_by" : "ExtUtils::MakeMaker version 6.62, CPAN::Meta::Converter version 2.120921",
+   "generated_by" : "ExtUtils::MakeMaker version 6.62, CPAN::Meta::Converter version 2.112150",
    "license" : [
       "unknown"
    ],
@@ -22,27 +22,27 @@
    "prereqs" : {
       "build" : {
          "requires" : {
-            "ExtUtils::MakeMaker" : "0"
+            "ExtUtils::MakeMaker" : 0
          }
       },
       "configure" : {
          "requires" : {
-            "ExtUtils::MakeMaker" : "0"
+            "ExtUtils::MakeMaker" : 0
          }
       },
       "runtime" : {
          "requires" : {
-            "Devel::Peek" : "0",
-            "Hash::Util" : "0",
+            "Devel::Peek" : 0,
+            "Hash::Util" : 0,
             "MRO::Define" : "0.01",
             "Package::Stash" : "0.29",
-            "Scalar::Util" : "0",
+            "Scalar::Util" : 0,
             "Sub::Name" : "0.05",
-            "Test::More" : "0",
-            "mro" : "0"
+            "Test::More" : 0,
+            "mro" : 0
          }
       }
    },
    "release_status" : "stable",
-   "version" : "0.21"
+   "version" : "0.22"
 }
