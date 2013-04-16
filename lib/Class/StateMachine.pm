@@ -1,6 +1,16 @@
 package Class::StateMachine;
 
-our $VERSION = '0.22';
+package Class::StateMachine::Private;
+
+sub _eval_states {
+    # we want the state declarations evaluated inside a clean
+    # environment (lexicaly free):
+    eval $_[0]
+}
+
+package Class::StateMachine;
+
+our $VERSION = '0.23';
 
 our $debug                     //= 0;
 our $ignore_same_state_changes //= 0;
@@ -8,12 +18,6 @@ our $ignore_same_state_changes //= 0;
 package Class::StateMachine::Private;
 
 use 5.010001;
-
-sub _eval_states {
-    # we want the state declarations evaluated inside a clean
-    # environment (lexical free):
-    eval $_[0]
-}
 
 use strict;
 use warnings;
@@ -31,16 +35,23 @@ fieldhash my %state;
 fieldhash my %state_changed;
 fieldhash my %delayed;
 fieldhash my %delayed_once;
+fieldhash my %on_leave_state;
 
 my %class_bootstrapped;
 my %class_state_isa;
 
 sub _debug {
     my $self = shift;
-    my $class = Class::StateMachine::ref($self);
-    my $state = $state{$self} // '<undef>';
-    my $addr = refaddr($self);
-    warn "${class}[$addr/$state]> @_\n";
+    require Time::HiRes;
+    if (length(my $class = Class::StateMachine::ref($self))) {
+        my $state = $state{$self} // '<undef>';
+        my $addr = refaddr($self);
+        warn sprintf "%08.3f %s[%x/%s%s]> %s\n",
+            Time::HiRes::time(), $class, $addr, $state, ($state_changed{$self} ? '|sc' : ''), "@_";
+    }
+    else {
+        warn sprintf "%08.3f %s> %s\n", Time::HiRes::time(), $self, "@_";
+    }
 }
 
 sub _state {
@@ -63,6 +74,14 @@ sub _state {
             $debug and _debug($self, "calling leave_state($old_state, $new_state)");
             $leave->($self, $old_state, $new_state);
             return $state{$self} if $state_changed{$self};
+        }
+        if (my $on_leave = $on_leave_state{$self}) {
+            while (defined(my $cb_and_args = shift @$on_leave)) {
+                my $cb = shift @$cb_and_args;
+                $debug and _debug($self, "calling on_leave_state hook $cb");
+                ref $cb ? $cb->(@$cb_and_args) : $self->$cb(@$cb_and_args);
+                return $state{$self} if $state_changed{$self};
+            }
         }
 
         my $base_class = ref($self);
@@ -141,6 +160,20 @@ sub _delay_once {
     }
     $delayed_once{$self}{$method}++
         or _delay($self, $method);
+}
+
+sub _on_leave_state {
+    my $self = shift;
+    @_ or croak 'Usage: $self->on_leave_state($callback, @args)';
+    push @{$on_leave_state{$self} //= []}, [@_] if defined $_[0];
+}
+
+sub _state_changed_on_call {
+    my $self = shift;
+    my $cb = shift;
+    local $state_changed{$self} if $state_changed{$self};
+    ref $cb ? $cb->(@_) : $self->$cb(@_);
+    $state_changed{$self};
 }
 
 sub _bootstrap_state_class {
@@ -243,7 +276,6 @@ sub _state_isa_from_derived {
 # use Data::Dumper;
 sub _statemachine_mro {
     my $stash = shift;
-    # print Dumper $stash;
     _move_state_methods if @state_methods;
     my $base_class = ${$stash->{base_class}};
     my $state = ${$stash->{state}};
@@ -255,9 +287,10 @@ sub _statemachine_mro {
     }
 
     # workaround bug on early mro implementations where the first
-    # class on the list returned was always discarded:
-    my $state_class = pop @classes;
-    [ $state_class, grep mro::get_pkg_gen($_), @classes, @linear ]
+    # class on the list returned was always discarded. Also, as we may
+    # have inserted methods from this callback, the state class should
+    # be searched again, so we hardcode it in the list even when empty.
+    [ $classes[0], grep mro::get_pkg_gen($_), @classes, @linear ]
 }
 
 MRO::Define::register_mro('statemachine' => \&_statemachine_mro);
@@ -276,6 +309,8 @@ sub MODIFY_CODE_ATTRIBUTES {
 *bless = \&Class::StateMachine::Private::_bless;
 *delay_until_next_state = \&Class::StateMachine::Private::_delay;
 *delay_once_until_next_state = \&Class::StateMachine::Private::_delay_once;
+*on_leave_state = \&Class::StateMachine::Private::_on_leave_state;
+*state_changed_on_call = \&Class::StateMachine::Private::_state_changed_on_call;
 *set_state_isa = \&Class::StateMachine::Private::_set_state_isa;
 *state_isa = \&Class::StateMachine::Private::_state_isa;
 
@@ -534,6 +569,8 @@ Note that they can be defined using the C<OnState> attribute:
   sub enter_state :OnState(angry) { shift->bark }
   sub enter_state :OnState(tired) { shift->lie_down }
 
+The methoc C<on_leave_state> can also be used to register per-object
+callbacks that are run just before changing the object state.
 
 =head2 API
 
@@ -564,14 +601,17 @@ Changes the object state.
 
 This method calls back the methods C<check_state>, C<leave_state> and
 C<enter_state> if they are defined in the class or any of its
-subclasses for the corresponding state.
+subclasses for the corresponding state and any callback registered
+using the C<on_leave_state> method.
 
 Until version 0.21, when C<$new_state> was equal to the current object
 state, this method would not invoke callback methods (C<enter_state>,
 C<leave_state>, etc.). On version 0.22 this special casing was
 removed.
 
-The variable 
+Setting the variable
+C<$Class::StateMachine::ignore_same_state_changes> to a true value
+restores the old behavior.
 
 =over 4
 
@@ -594,6 +634,21 @@ $old_state, the requested state change is canceled.
 
 X<enter_state>This method is called just after changing the state to
 the new value.
+
+=item $self->on_leave_state($callback, @args)
+
+The given callback is called when the state changes.
+
+C<$callback> may be a reference to a subroutine or a method name. It
+is called respectively as follows:
+
+  $callback->(@args);      # $callback is a CODE reference
+  $self->$callback(@args); # $callback is a method name
+
+If the calling the C<leave_state> method is also defined, it is called first.
+
+The method may be called repeatly from the same state and the
+callbacks will be executed in FIFO order.
 
 =item $self->delay_until_next_state
 
@@ -671,7 +726,8 @@ This module internally plays with the inheritance chain creating new
 classes and reblessing objects on the fly and (ab)using the L<mro>
 mechanism in funny ways.
 
-The objects state is maintained inside a L<Hash::Util::FieldHash>.
+The objects state is maintained using L<Hash::Util::FieldHash>
+objects.
 
 =head1 BUGS
 
