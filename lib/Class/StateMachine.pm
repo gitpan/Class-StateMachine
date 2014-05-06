@@ -10,7 +10,7 @@ sub _eval_states {
 
 package Class::StateMachine;
 
-our $VERSION = '0.23';
+our $VERSION = '0.24';
 
 our $debug                     //= 0;
 our $ignore_same_state_changes //= 0;
@@ -273,6 +273,10 @@ sub _state_isa_from_derived {
     wantarray ? @isa : $isa[1];
 }
 
+# we make $^V into a constant so that it gets optimized away at
+# compile time:
+use constant _perl_version => $^V;
+
 # use Data::Dumper;
 sub _statemachine_mro {
     my $stash = shift;
@@ -286,11 +290,13 @@ sub _statemachine_mro {
         push @classes, map join('::', $_, '__methods__', $state), @derived;
     }
 
-    # workaround bug on early mro implementations where the first
-    # class on the list returned was always discarded. Also, as we may
-    # have inserted methods from this callback, the state class should
-    # be searched again, so we hardcode it in the list even when empty.
-    [ $classes[0], grep mro::get_pkg_gen($_), @classes, @linear ]
+    ( _perl_version >= 5.016000
+      ? [ grep mro::get_pkg_gen($_), @classes, @linear ]
+      # workaround bug on early mro implementations where the first
+      # class on the list returned was always discarded. Also, as we may
+      # have inserted methods from this callback, the state class should
+      # be searched again, so we hardcode it in the list even when empty.
+      : [ $classes[0], grep mro::get_pkg_gen($_), @classes, @linear ] )
 }
 
 MRO::Define::register_mro('statemachine' => \&_statemachine_mro);
@@ -444,7 +450,7 @@ follows:
 
 =head2 Object construction
 
-Class::StateMachine does not imposse any particular type of data
+Class::StateMachine does not impose any particular type of data
 structure for the instance objects. Any Perl reference type (HASH,
 ARRAY, SCALAR, GLOB, etc.) can be used.
 
@@ -463,7 +469,7 @@ For instance:
   }
 
 A default state C<new> gets assigned to the object when the third
-parameter to C<Class::StateMachine::bless> is ommited.
+parameter to C<Class::StateMachine::bless> is omitted.
 
 =head2 Instance state
 
@@ -504,7 +510,7 @@ attribute with a list of the states where it applies.
   sub bark :OnState(happy, tired) { play "happy_bark.wav" }
   sub bark :OnState(injured) { play "pitiful_bark.wav" }
 
-The text inside the OnState parents is evaluated in list context on
+The text inside the C<OnState> parents is evaluated in list context on
 the current package and with strictures turned off in order to allow
 usage of barewords.
 
@@ -527,7 +533,7 @@ For instance:
 
 =head2 Method resolution order
 
-What happens when you declare submethods spreaded among a class
+What happens when you declare submethods spread among a class
 inheritance hierarchy?
 
 Class::StateMachine will search for the method as follows:
@@ -569,7 +575,7 @@ Note that they can be defined using the C<OnState> attribute:
   sub enter_state :OnState(angry) { shift->bark }
   sub enter_state :OnState(tired) { shift->lie_down }
 
-The methoc C<on_leave_state> can also be used to register per-object
+The method C<on_leave_state> can also be used to register per-object
 callbacks that are run just before changing the object state.
 
 =head2 API
@@ -585,7 +591,7 @@ These are the methods available from Class::StateMachine:
 Sets or changes the object class in a manner compatible with
 Class::StateMachine.
 
-This function must be used as the way to create new objetcs of classes
+This function must be used as the way to create new objects of classes
 derived from Class::StateMachine.
 
 If the third argument C<$state> is not given, C<new> is used as the
@@ -647,7 +653,7 @@ is called respectively as follows:
 
 If the calling the C<leave_state> method is also defined, it is called first.
 
-The method may be called repeatly from the same state and the
+The method may be called repeatedly from the same state and the
 callbacks will be executed in FIFO order.
 
 =item $self->delay_until_next_state
@@ -698,19 +704,19 @@ Class::StateMachine magic.
 
 Sets a submethod for a given class/state combination.
 
-=back
-
 =item Class::StateMachine::set_state_isa($class, $state, @isa)
 
 Allows to set one state as derived from others.
 
-Note that support for state derivation is completly experimental and
+Note that support for state derivation is completely experimental and
 may change at any time!
 
 =item Class::StateMachine::state_isa($class, $state)
 
 Returns the list of states from which the given C<$state> derives
 including itself and C<__any__>.
+
+=back
 
 =head2 Debugging
 
@@ -732,13 +738,13 @@ objects.
 =head1 BUGS
 
 Backward compatibility has been broken in version 0.13 in order to
-actualize the class to use modern Perl features as mro and provide
-sanner semantics.
+actualize the class to use modern Perl features as MRO and provide
+saner semantics.
 
 Passing several states in the same submethod definition can break the
-next::method machinery from the mro package.
+C<next::method> machinery from the C<mro> package.
 
-For instace:
+For instance:
 
   sub foo :OnState(one, two, three) { shift->next::method(@_) }
 
@@ -753,7 +759,7 @@ The C<dog.pl> example included within the package.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2003-2006, 2011-2013 by Salvador FandiE<ntilde>o (sfandino@yahoo.com).
+Copyright (C) 2003-2006, 2011-2014 by Salvador FandiE<ntilde>o (sfandino@yahoo.com).
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
